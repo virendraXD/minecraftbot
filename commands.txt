@@ -1,0 +1,146 @@
+!ask collect some wood
+!ask put in chest
+!ask follow me
+!ask craft a wooden pickaxe
+!ask come here
+!build 561 43
+/effect give AIPlayerBot glowing infinite 255 true
+/execute in minecraft:overworld run tp @s -1024.31 67.00 -729.01 -8639.16 10.95
+
+
+// async function chatWithAI(message) {
+//   try {
+//     const response = await axios.post(
+//       'https://openrouter.ai/api/v1/chat/completions',
+//       {
+//         model: 'openai/gpt-3.5-turbo',
+//         messages: [
+//           {
+//             role: 'system',
+//             content: 'You are an AI Minecraft bot. Respond with actions the bot should do.'
+//           },
+//           {
+//             role: 'user',
+//             content: message
+//           }
+//         ]
+//       },
+//       {
+//         headers: {
+//           Authorization: Bearer ${process.env.OPENROUTER_API_KEY},
+//           'Content-Type': 'application/json'
+//         }
+//       }
+//     );
+
+//     const reply = response.data.choices[0].message.content;
+//     bot.chat(reply);
+//     await processAICommand(reply);
+//   } catch (err) {
+//     console.log('❌ AI Error:', err.message);
+//   }
+// }
+
+
+  // bot.on('messagestr', (message) => {
+  //   console.log(`📩 Server message: ${message}`);
+  
+  //   if (message.toLowerCase().includes('register')) {
+  //     bot.chat(REGISTER_CMD);
+  //     console.log('🔐 Sent register command.');
+  //   }
+  
+  //   if (message.toLowerCase().includes('login')) {
+  //     bot.chat(LOGIN_CMD);
+  //     console.log('🔓 Sent login command.');
+  //   }
+  // });
+  
+const PASSWORD = 'mysecurepassword' // Your desired password wanderRandomly
+let hasLoggedIn = false
+let hasRegistered = false
+
+// Listen for chat messages from the server
+bot.on('messagestr', (message) => {
+  const lower = message.toLowerCase()
+
+  // Send the /register command only if we haven't registered yet
+  if (!hasRegistered && lower.includes('register')) {
+    setTimeout(() => {
+      bot.chat(`/register ${PASSWORD} ${PASSWORD}`)
+      hasRegistered = true
+      console.log('🔐 Sent /register command')
+    }, 3000) // Delay to avoid spamming
+  }
+
+  // Send the /login command only if we haven't logged in yet
+  if (!hasLoggedIn && lower.includes('login')) {
+    setTimeout(() => {
+      bot.chat(`/login ${PASSWORD}`)
+      hasLoggedIn = true
+      console.log('🔓 Sent /login command')
+    }, 3000) // Delay to avoid spamming
+  }
+})
+
+// Handle login and registration events
+bot.once('spawn', () => {
+  console.log('Bot spawned. Attempting login...')
+  bot.loadPlugin(pathfinder)
+  const defaultMove = new Movements(bot)
+  bot.pathfinder.setMovements(defaultMove)
+
+  // Wait a few seconds for the /login or /register to be processed
+  setTimeout(() => {
+    if (hasLoggedIn || hasRegistered) {
+      wanderRandomly()
+    } else {
+      console.log('⚠️ Login/Register not detected yet. Waiting for prompt...')
+    }
+  }, 5000) // 5 seconds to ensure the login/register prompt is processed
+})
+
+// Random wandering logic
+function wanderRandomly() {
+  const pos = bot.entity.position
+
+  const dx = Math.floor(Math.random() * 20 - 10)
+  const dz = Math.floor(Math.random() * 20 - 10)
+  const x = pos.x + dx
+  const z = pos.z + dz
+  const y = bot.entity.position.y // Keep the same Y height for simplicity
+
+  const goal = new goals.GoalBlock(x, y, z)
+  bot.pathfinder.setGoal(goal)
+
+  // Use once to prevent multiple listeners being added
+  const goalReachedListener = () => {
+    setTimeout(wanderRandomly, 1000) // Wander again after reaching the goal
+    bot.removeListener('goal_reached', goalReachedListener) // Remove listener after use
+  }
+  bot.once('goal_reached', goalReachedListener)
+
+  const pathResetListener = () => {
+    setTimeout(wanderRandomly, 1000) // Wander again after path reset
+    bot.removeListener('path_reset', pathResetListener) // Remove listener after use
+  }
+  bot.once('path_reset', pathResetListener)
+}
+
+// Event for successful login
+bot.on('login', () => {
+  console.log('✅ Bot logged in successfully.')
+})
+
+// Handle bot being kicked
+bot.on('kicked', (reason) => {
+  console.log('❌ Bot kicked:', reason)
+  if (reason.includes('Banned for spam')) {
+    console.log('⚠️ Bot was banned for spamming. Consider adding more delays between commands.')
+  }
+})
+
+// Handle bot errors
+bot.on('error', (err) => {
+  console.log('❌ Bot error:', err)
+})
