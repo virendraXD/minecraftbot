@@ -9,32 +9,26 @@ const {
   GoalInvert, GoalFollow, GoalBreakBlock, GoalPlaceBlock, GoalLookAtBlock
 } = goals;
 const { loader: autoEat } = require('mineflayer-auto-eat');
-// const { Schematic } = require('prismarine-schematic');
 const { Vec3 } = require('vec3');
 const fs = require('fs');
-// const util = require('util');
-// const readFile = util.promisify(fs.readFile);
-// const { parse } = require('prismarine-nbt');
 const path = require('path');
 const { status } = require('minecraft-server-util');
-// const schematicModule = require('prismarine-schematic');
 
-// const mcData = require('minecraft-data');
-// const prismarineBiome = require('prismarine-biome');
-// const mcDataLoader = require('minecraft-data');
 
-// console.log(schematicModule);
-
-// const { loadSchematic } = schematicModule;
-
-// import { AutoBuilder } from 'mineflayer-builder'; // optional smart builder helper
 const SERVER_HOST = 'The_Boyss.aternos.me'; // Replace with your server's IP or hostname
 const SERVER_PORT = 34796;
 const BOT_USERNAME = 'Aisha';
+const pickUpCooldown = 5000;
 
 let bot = null;
 let checkInterval = null;
 let inactivityTimer = null;
+let lastPlayerActivity = Date.now(); // Track last real player activity
+let lastActivity = Date.now(); // initialize with current time
+let mcData;
+let isCancelled = false;  
+let lastPickUpTime = 0;
+
 
 function pingServerAndDecide() {
   status(SERVER_HOST, SERVER_PORT)
@@ -47,6 +41,9 @@ function pingServerAndDecide() {
       if (!bot && realPlayers.length > 0) {
         console.log("🎮 Players detected. Joining server...");
         startBot();
+      } else if (bot && realPlayers.length > 0) {
+        // Reset activity time if bot is already running
+        lastPlayerActivity = Date.now();
       }
     })
     .catch(() => {
@@ -57,6 +54,16 @@ function pingServerAndDecide() {
 
 // Start ping loop every 30 seconds
 checkInterval = setInterval(pingServerAndDecide, 30_000);
+
+setInterval(() => {
+  const now = Date.now();
+  const timeSinceLastActivity = (now - lastActivity) / 1000; // in seconds
+
+  if (timeSinceLastActivity > 300) { // e.g. 5 minutes
+    console.log("No activity detected for 5 minutes. Doing something...");
+    // take action (like saving state, reconnecting, etc.)
+  }
+}, 60 * 1000); // check every 1 minute
 
 function startBot() {
   bot = mineflayer.createBot({
@@ -83,21 +90,6 @@ function startBot() {
 
   bot.once('spawn', async () => {
   try {
-    // Ensure mcData and registry are properly loaded
-    // if (!mcData || !mcData.registry || !mcData.registry.biomes) {
-    //   console.error('Error: Could not load Minecraft data or biome registry.');
-    //   return;
-    // }
-
-    // const biomes = mcData.registry.biomes;
-    // console.log('Loaded biomes:', biomes);
-
-    // Initialize prismarineBiome with the correct mcData version
-    // const biomeHandler = prismarineBiome(mcData.registry); // Pass the loaded registry
-    // console.log('Biome handler initialized.');
-
-    // console.log('Bot version:', bot.version);
-    // console.log('Minecraft data version:', mcData.version);
     mcData = require('minecraft-data')(bot.version);
 
     // Wait for inventory to be loaded
@@ -110,7 +102,7 @@ function startBot() {
     defaultMove.scafoldingBlocks = [];
     bot.pathfinder.setMovements(defaultMove);
 
-    // Load auto-eat plugin
+    // Load auto-eat plugin bot.on('c
     bot.loadPlugin(autoEat);
   
     bot.on('message', (jsonMsg) => {
@@ -155,13 +147,7 @@ function startBot() {
       console.log('📩 Server says:', msg);
     });
 
-    // bot.on('chat', (username, message) => {
-    //   if (username !== bot.username) {
-    //     console.log(`💬 ${username}: ${message}`);
-    //   }
-    // });
-
-    // Safer event logs
+    // Safer event logs 💬
     bot.autoEat.on('eatStart', (item) => {
       console.log(`🍽️ Started eating ${item?.name || 'something (unknown)'}`);
     });
@@ -174,7 +160,7 @@ function startBot() {
       console.error('❌ Eating failed:', error);
     });
 
-    // Pathfinding logs
+    // Pathfinding logs 
     bot.on('path_update', (r) => {
       const nodesPerTick = (r.visitedNodes * 50 / r.time).toFixed(2);
       console.log(`📍 I can get there in ${r.path.length} moves. Computation took ${r.time.toFixed(2)} ms (${r.visitedNodes} nodes, ${nodesPerTick} nodes/tick)`);
@@ -195,14 +181,15 @@ function startBot() {
     bot.on('end', () => {
       console.log('🔌 Bot disconnected. Attempting to reconnect...');
       setTimeout(() => {
-        // Recreate the bot here
+        console.log("🔁 Reconnecting bot...");
+        startBot();
       }, 5000);
     });
 
-
-
 bot.on('chat', async (username, message) => {
   if (username === bot.username) return; // Ignore bot's own messages
+  lastPlayerActivity = Date.now(); // Reset activity timer on real player chat
+  lastActivity = Date.now();
   console.log(`💬 ${username}: ${message}`);
   
   // Respond to !chat messages (casual conversation)
@@ -211,15 +198,8 @@ bot.on('chat', async (username, message) => {
     // bot.chat('🧠 Thinking...');
     await chatWithAI(query);
   }
-
-  // // Respond to !cmd messages (direct commands for actions)
-  // if (message.startsWith('!cmd ')) {
-  //   const instruction = message.slice(5).trim();
-  //   bot.chat('⚙️ Processing command...');
-  //   await chatWithAI(instruction);
-  // }
   
-  // Check if the message starts with '!' and remove it for easier processing
+  // Check if the message starts with '!' and remove it for easier processing bot.on('chat'
   if (!message.startsWith('!')) return; // Ignore messages without the '!' prefix
   const cmd = message.slice(1).trim().toLowerCase(); // Get the command by removing '!' and making it lowercase
 
@@ -229,47 +209,6 @@ bot.on('chat', async (username, message) => {
       bot.chat('📜 Commands 2/2: !goto x y z | !break | !place <item> | !deliver | !chat <msg>');
     }, 1000);
   }
-
-  // Build schematic command fs.readFile
-  // if (cmd.startsWith('build')) {
-  //   const coords = cmd.split(' ').slice(1); // Get x and z coordinates
-  //   if (coords.length !== 2) {
-  //     return bot.chat('❌ Please provide both X and Z coordinates for the center!');
-  //   }
-
-  //   const [x, z] = coords.map(Number);
-  //   if (isNaN(x) || isNaN(z)) {
-  //     return bot.chat('❌ Invalid coordinates provided!');
-  //   }
-
-  //   bot.chat('📦 Starting to build schematic...');
-    
-  //   // Load the schematic (ensure you replace with your path and file)
-  //   // const schematicPath = './schematics/sayan_gamer123.schematic'; // Replace with your schematic file path
-  //   // const schematic = await Schematic.read(await fs.promises.readFile(schematicPath));
-    
-  //   // Check the items required for the schematic
-  //   const requiredItems = getRequiredBlocks(schematic);
-
-  //   // Try to find a chest nearby to gather the needed items
-  //   const chest = findNearestChest();
-  //   if (!chest) {
-  //     return bot.chat('No chest found nearby to gather items from!');
-  //   }
-
-  //   // Withdraw the required items from the chest
-  //   const success = await withdrawNeededItems(requiredItems, chest);
-  //   if (!success) {
-  //     return bot.chat('Could not gather all required items!');
-  //   }
-
-  //   bot.chat('🧮 All items gathered, starting to build...');
-    
-  //   // Calculate the origin based on provided x, z, and the schematic's height
-  //   const origin = new Vec3(x, bot.entity.position.y, z); // y is kept at bot's current position for now 💬 
-  //   await buildSchematic(schematic, origin);
-  //   bot.chat('🏗️ Schematic built successfully!');
-  // }
 
   if (cmd === 'stop') {
     isCancelled = true;
@@ -290,6 +229,25 @@ bot.on('chat', async (username, message) => {
 
   if (cmd === 'put in chest') {
     await depositToChest(); // Ensure this is an async function message
+  }
+
+  if (cmd === 'getlocation') {
+    const targetName = args[1];
+    if (!targetName) {
+      bot.chat('Usage: !getlocation <player>');
+      return;
+    }
+
+    const target = bot.players[targetName]?.entity;
+    if (!target) {
+      bot.chat(`❌ Player "${targetName}" not found or not visible.`);
+      return;
+    }
+
+    const pos = target.position;
+    const world = target.world?.dimension || "unknown";
+
+    bot.chat(`📍 ${targetName} is in "${world}" at X: ${pos.x.toFixed(1)}, Y: ${pos.y.toFixed(1)}, Z: ${pos.z.toFixed(1)}`);
   }
 
   const target = bot.players[username]?.entity;
@@ -387,13 +345,7 @@ bot.on('chat', async (username, message) => {
       bot.chat('Failed to deliver items.');
     }
   }
-});    
-
-    // Load and use the schematic
-    // const schematicData = await fs.readFile('./schematics/sayan_gamer123.schem');
-    // const schematic = await Schematic.read(schematicData);
-
-    // console.log('✅ Schematic loaded successfully.');
+});
 
     console.log('✅ Bot spawned and ready.');
   } catch (err) {
@@ -402,28 +354,40 @@ bot.on('chat', async (username, message) => {
   });
   
   // Inactivity check every 10 sec status
-  setInterval(() => {
-    if (!bot?.players) return;
+let inactivityTimer = null;
+let lastActivity = Date.now();
 
-    const otherPlayers = Object.values(bot.players)
-      .filter(p => p.username !== BOT_USERNAME && p.entity);
+// Update activity on chat
 
-    if (otherPlayers.length === 0) {
-      if (!inactivityTimer) {
-        console.log("🕒 No players detected. Starting 60s timer...");
-        inactivityTimer = setTimeout(() => {
-          console.log("⏹️ No players joined. Disconnecting bot.");
-          stopBot();
-        }, 60_000);
-      }
-    } else {
-      if (inactivityTimer) {
-        console.log("🟢 Players returned. Clearing inactivity timer.");
-        clearTimeout(inactivityTimer);
-        inactivityTimer = null;
-      }
+
+// Update activity on player join
+bot.on('playerJoined', (player) => {
+  if (player.username !== bot.username) {
+    console.log(`🎉 ${player.username} joined.`);
+    lastActivity = Date.now();
+  }
+});
+
+// Update activity on player movement entitygone
+bot.on('entityMoved', (entity) => {
+  if (
+    entity.type === 'player' &&
+    entity.username !== bot.username
+  ) {
+    lastActivity = Date.now();
+  }
+});
+
+bot.on('entityGone', (entity) => {
+  try {
+    if (entity?.username) {
+      console.log(`[Left] ${entity.username}`);
     }
-  }, 10_000);
+  } catch (err) {
+    console.error('❌ entityGone error:', err);
+  }
+});
+
 }
 
 function stopBot() {
@@ -436,26 +400,6 @@ function stopBot() {
     inactivityTimer = null;
   }
 }
-
-
-
-let mcData;
-// let schematic;
-
-// Auto-register/login
-// const REGISTER_CMD = '/register strongPassword123 strongPassword123';
-// const LOGIN_CMD = '/login strongPassword123';
-
-// const mcData = require('minecraft-data')(bot.version); // Ensure this is properly initialized with the correct version
-
-
-
-
-
-
-
-
-
 
 async function chatWithAI(message) {
   try {
@@ -490,7 +434,6 @@ async function chatWithAI(message) {
   }
 }
 
-
 async function processAICommand(message) {
   const lower = message.toLowerCase();
 
@@ -500,40 +443,8 @@ async function processAICommand(message) {
 
     isCancelled = false;
     collectWood(amount);
-  // } else {
-  //   bot.chat("🤖 That doesn't sound like a Minecraft action.");
-  // }
   }
 }
-
-// Make sure prismarine-biome and prismarine-block are properly initialized
-// const prismarineBiome = require('prismarine-biome')(mcData.version);
-// const prismarineBlock = require('prismarine-block')(mcData.versions);
-
-// Function to load the schematic file
-// async function loadSchematicFile(path) {
-//   try {
-//     console.log('📦 Loading schematic...');
-//     const fileBuffer = await readFile(path);
-    
-//     // Parse NBT data from file
-//     const nbtData = await parse(fileBuffer);
-    
-//     // Initialize the schematic with biome and block data
-//     const schematic = new Schematic(nbtData, prismarineBiome, prismarineBlock);
-    
-//     console.log('✅ Schematic loaded successfully!');
-    
-//     // Return schematic for use in your bot
-//     return schematic;
-//   } catch (error) {
-//     console.error('❌ Error loading schematic:', error);
-//     throw error;
-//   }
-// }
-
-// Example: Load a schematic from a file path
-// loadSchematicFile('./schematics/name.schem');
 
 function findNearestTrappedChest() {
   return bot.findBlock({
@@ -559,7 +470,6 @@ async function roamAround(radius = 10) {
     console.log(`❌ Roaming failed: ${err.message}`);
   }
 }
-
 
 async function mineBlock(pos) {
   const targetBlock = bot.blockAt(pos);
@@ -600,8 +510,6 @@ async function equipAxe() {
     }
   }
 }
-
-let isCancelled = false;
 
 async function collectWood(targetCount = 64) {
   // if (!hasAxe()) {
@@ -685,9 +593,6 @@ async function collectWood(targetCount = 64) {
   }
   loop();
 }
-  
-let lastPickUpTime = 0;
-const pickUpCooldown = 5000;
 
 async function collectNearbyDrops() {
   const now = Date.now();
@@ -771,83 +676,3 @@ function rayTraceEntitySight(entity) {
 
   return targetBlock
 }
-
-// ----------------------------------------Schematic Builder----------------------------------------
-// function getRequiredBlocks(schematic) {
-//   const requiredItems = [];
-
-//   // Iterate through the blocks in the schematic and get the required block types
-//   for (let i = 0; i < schematic.blocks.length; i++) {
-//     const blockId = schematic.blocks[i];
-//     const block = schematic.palette[blockId];
-//     if (!requiredItems.includes(block)) {
-//       requiredItems.push(block);
-//     }
-//   }
-
-//   return requiredItems;
-// }
-
-// function findNearestChest() {
-//   const chestId = mcData.blocksByName.chest.id;
-
-//   const chests = bot.findBlocks({
-//     matching: chestId,
-//     maxDistance: 32,
-//     count: 1
-//   });
-
-//   if (chests.length === 0) return null;
-//   console.log('🔍 Looking for chests with ID:', chestId);
-
-//   return bot.blockAt(chests[0]);
-  
-// }
-
-
-// async function withdrawNeededItems(requiredItems, chest) {
-//   const chestWindow = await bot.openBlock(chest);
-  
-//   // Iterate over each required item and ensure the bot has it in its inventory
-//   for (const item of requiredItems) {
-//     let hasItem = bot.inventory.items().some(i => i.name === item);
-
-//     if (!hasItem) {
-//       const chestItems = chestWindow.slots.filter(i => i && i.name === item);
-
-//       if (chestItems.length > 0) {
-//         // Transfer item to bot inventory
-//         await bot.transfer({
-//           window: chestWindow,
-//           itemType: chestItems[0].type,
-//           metadata: chestItems[0].metadata,
-//           sourceStart: 0,
-//           sourceEnd: chestWindow.slots.length,
-//           destStart: bot.inventory.inventoryStart,
-//           destEnd: bot.inventory.inventoryEnd
-//         });
-//       } else {
-//         bot.chat(`❌ Missing required item: ${item}`);
-//         chestWindow.close();
-//         return false; // Failed to withdraw all required items
-//       }
-//     }
-//   }
-
-//   chestWindow.close();
-//   return true; // Successfully withdrew all required items
-// }
-
-// async function buildSchematic(schematic, origin) {
-//   for (let i = 0; i < schematic.blocks.length; i++) {
-//     const blockId = schematic.blocks[i];
-//     const block = schematic.palette[blockId];
-
-//     // Calculate the position for placing this block
-//     const position = origin.offset(i % schematic.size.x, Math.floor(i / schematic.size.x) % schematic.size.y, Math.floor(i / (schematic.size.x * schematic.size.y)) % schematic.size.z);
-
-//     // Build the block at the given position
-//     await bot.placeBlock(position, block); // This assumes `block` can be placed directly
-//   }
-// }
-
