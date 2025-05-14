@@ -13,9 +13,9 @@ const { Vec3 } = require('vec3');
 const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
-
-const SERVER_HOST = 'The_Boyss.aternos.me'; // Replace with your server's IP or hostname
-const SERVER_PORT = 34796;
+//Aternos IP: The_Boyss.aternos.me:34796
+const SERVER_HOST = 'localhost'; // Replace with your server's IP or hostname
+const SERVER_PORT = 25565;
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 
@@ -234,21 +234,23 @@ function startBot() {
     });
 
 bot.on('chat', async (username, message) => {
-  if (username === bot.username) return; // Ignore bot's own messages jsonMsg
+  if (username === bot.username) return; // Ignore bot's own messages
+
   lastPlayerActivity = Date.now(); // Reset activity timer on real player chat
   lastActivity = Date.now();
   console.log(`💬 ${username}: ${message}`);
-  
+
   // Respond to !chat messages (casual conversation)
   if (message.startsWith('!chat ')) {
     const query = message.slice(6).trim();
     // bot.chat('🧠 Thinking...');
     await chatWithAI(query);
   }
-  
-  // Check if the message starts with '!' and remove it for easier processing bot.on('chat'
+
+  // Check if the message starts with '!' and remove it for easier processing
   if (!message.startsWith('!')) return; // Ignore messages without the '!' prefix
-  const cmd = message.slice(1).trim().toLowerCase(); // Get the command by removing '!' and making it lowercase
+  const args = message.slice(1).trim().split(/\s+/);
+  const cmd = args.shift().toLowerCase(); // Get the command by removing '!' and making it lowercase
 
   if (cmd === 'help') {
     bot.chat('📜 Commands 1/2: !come | !follow | !avoid | !stop | !collect wood | !put in chest');
@@ -279,23 +281,29 @@ bot.on('chat', async (username, message) => {
   }
 
   if (cmd === 'getlocation') {
-    const args = message.split(' ');
-    const targetName = args[1];
+    const targetName = args[0]; // Get player name from the first argument
+
     if (!targetName) {
-      bot.chat('Usage: !getlocation <player>');
+      bot.chat('❌ Please specify a player name. Example: !getlocation <player>');
       return;
     }
 
-    const target = bot.players[targetName]?.entity;
-    if (!target) {
-      bot.chat(`❌ Player "${targetName}" not found or not visible.`);
+    const playerData = bot.players[targetName];
+
+    if (!playerData) {
+      bot.chat(`❌ I can't find any data for player "${targetName}". They might be offline.`);
       return;
     }
 
-    const pos = target.position;
-    const world = target.world?.dimension || "unknown";
+    const entity = playerData.entity;
 
-    bot.chat(`📍 ${targetName} is in "${world}" at X: ${pos.x.toFixed(1)}, Y: ${pos.y.toFixed(1)}, Z: ${pos.z.toFixed(1)}`);
+    if (entity) {
+      const pos = entity.position;
+      const dimension = bot.game.dimension; // Get bot's dimension (world)
+      bot.chat(`📍 ${targetName} is at X: ${Math.floor(pos.x)}, Y: ${Math.floor(pos.y)}, Z: ${Math.floor(pos.z)} in world: ${dimension}`);
+    } else {
+      bot.chat(`👀 ${targetName} is online but not currently in view. I can't track their exact location.`);
+    }
   }
 
   const target = bot.players[username]?.entity;
