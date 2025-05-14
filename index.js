@@ -14,20 +14,20 @@ const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
 
-
 const SERVER_HOST = 'The_Boyss.aternos.me'; // Replace with your server's IP or hostname
 const SERVER_PORT = 34796;
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 
 let bot = null;
-let checkInterval = null;
+// let checkInterval = null;
 let inactivityTimer = null;
 let lastPlayerActivity = Date.now(); // Track last real player activity
 let lastActivity = Date.now(); // initialize with current time
 let mcData;
 let isCancelled = false;  
 let lastPickUpTime = 0;
+let checkInterval;
 
 
 function pingServerAndDecide() {
@@ -52,6 +52,48 @@ function pingServerAndDecide() {
     });
 }
 
+let playerCheckInterval;
+let playerRetryAttempts = 0;
+const MAX_RETRIES = 3; // Number of retries before quitting
+
+function startPlayerCheckLoop() {
+  if (playerCheckInterval) clearInterval(playerCheckInterval);
+
+  playerCheckInterval = setInterval(() => {
+    const playersOnline = Object.values(bot.players).filter(p => !p.bot);
+    const realPlayerNames = playersOnline.map(p => p.username);
+
+    console.log(`[Ping] Found ${realPlayerNames.length} real players online: ${JSON.stringify(realPlayerNames)}`);
+
+    if (realPlayerNames.length > 0) {
+      clearInterval(playerCheckInterval);
+      playerRetryAttempts = 0;
+      console.log("✅ Real players detected. Continuing bot tasks...");
+      // Continue bot behavior here
+    } else {
+      playerRetryAttempts++;
+      console.log(`No players online. Attempt ${playerRetryAttempts}/${MAX_RETRIES}`);
+
+      if (playerRetryAttempts >= MAX_RETRIES) {
+        clearInterval(playerCheckInterval);
+        console.log("🚫 Max retries reached. Disconnecting bot...");
+        bot.quit();
+      }
+    }
+  }, 10000); // Check every 10 seconds
+}
+
+// bot.on('spawn', () => {
+//   console.log("✅ Bot spawned and ready.");
+//   startPlayerCheckLoop();
+// });
+
+// bot.on('end', () => {
+//   console.log("🔌 Bot disconnected. Attempting to reconnect...");
+//   setTimeout(createBot, 5000);
+// });
+
+
 // Start ping loop every 30 seconds
 checkInterval = setInterval(pingServerAndDecide, 30_000);
 
@@ -64,7 +106,7 @@ setInterval(() => {
     // take action (like saving state, reconnecting, etc.)
   }
 }, 60 * 1000); // check every 1 minute
-
+//inactivityTimer 
 function startBot() {
   bot = mineflayer.createBot({
     host: SERVER_HOST,  //ip for aternos: knightbot.duckdns.org
@@ -80,8 +122,9 @@ function startBot() {
   });
 
   bot.on('end', () => {
-    console.log("🔌 Bot disconnected.");
-    bot = null;
+    console.log("Bot disconnected. Clearing player check loop.");
+    clearInterval(checkInterval);
+    setTimeout(createBot, 5000);
   });
 
   bot.on('error', (err) => {
@@ -90,6 +133,10 @@ function startBot() {
 
   bot.once('spawn', async () => {
   try {
+    startPlayerCheckLoop();
+    console.log("Bot spawned. Starting player check loop.");
+    checkInterval = setInterval(() => checkForPlayersAndQuit(bot), 30 * 1000);
+
     mcData = require('minecraft-data')(bot.version);
 
     // Wait for inventory to be loaded
@@ -142,12 +189,12 @@ function startBot() {
       };
     });
 
-    bot.on('message', (jsonMsg) => {
-      const msg = jsonMsg.toString();
-      console.log('📩 Server says:', msg);
-    });
+    // bot.on('message', (jsonMsg) => {
+    //   const msg = jsonMsg.toString();
+    //   console.log('📩 Server says:', msg);
+    // });
 
-    // Safer event logs 💬
+    // Safer event logs 💬 realPlayers.length
     bot.autoEat.on('eatStart', (item) => {
       console.log(`🍽️ Started eating ${item?.name || 'something (unknown)'}`);
     });
@@ -187,7 +234,7 @@ function startBot() {
     });
 
 bot.on('chat', async (username, message) => {
-  if (username === bot.username) return; // Ignore bot's own messages
+  if (username === bot.username) return; // Ignore bot's own messages jsonMsg
   lastPlayerActivity = Date.now(); // Reset activity timer on real player chat
   lastActivity = Date.now();
   console.log(`💬 ${username}: ${message}`);
@@ -232,6 +279,7 @@ bot.on('chat', async (username, message) => {
   }
 
   if (cmd === 'getlocation') {
+    const args = message.split(' ');
     const targetName = args[1];
     if (!targetName) {
       bot.chat('Usage: !getlocation <player>');
@@ -334,7 +382,7 @@ bot.on('chat', async (username, message) => {
             destEnd: chestWindow.slots.length
           });
         } catch (err) {
-          // Silently ignore transfer errors
+          // Silently ignore transfer errors realPlayers.length
         }
       }
 
@@ -353,9 +401,9 @@ bot.on('chat', async (username, message) => {
   }
   });
   
-  // Inactivity check every 10 sec status
-let inactivityTimer = null;
-let lastActivity = Date.now();
+  // Inactivity check every 10 sec status targetName
+// let inactivityTimer = null;
+// let lastActivity = Date.now(); 
 
 // Update activity on chat
 
@@ -387,8 +435,28 @@ bot.on('entityGone', (entity) => {
     console.error('❌ entityGone error:', err);
   }
 });
-
 }
+
+function checkForPlayersAndQuit(bot) {
+  // If bot is disconnected or not ready, skip startPlayerCheckLoop
+  if (!bot || !bot.players) {
+    console.log("Bot not ready or disconnected. Skipping player check.");
+    return;
+  }
+
+  const realPlayers = Object.values(bot.players).filter(
+    (p) => p?.username && p.username !== bot.username
+  );
+
+  if (realPlayers.length === 0) {
+    console.log("No players online. Quitting bot...");
+    clearInterval(checkInterval); // stop checking Bot disconnected
+    bot.quit();
+  } else {
+    console.log(`Players online: ${realPlayers.map(p => p.username).join(", ")}`);
+  }
+}
+
 
 function stopBot() {
   if (bot) {
@@ -447,10 +515,13 @@ async function processAICommand(message) {
 }
 
 function findNearestTrappedChest() {
-  return bot.findBlock({
+  const chests = bot.findBlocks({
     matching: block => block.name === 'trapped_chest',
-    maxDistance: 64
-  })
+    maxDistance: 16,
+    count: 1
+  });
+  if (!chests.length) return null;
+  return bot.blockAt(chests[0]);
 }
 
 function logInventory() {
