@@ -12,6 +12,7 @@
   "dependencies": {
     "dotenv": "^16.5.0",
     "minecraft-data": "^3.86.0",
+    "minecraft-server-util": "^5.4.4",
     "mineflayer": "^4.27.0",
     "mineflayer-auto-eat": "^5.0.1",
     "mineflayer-collectblock": "^1.6.0",

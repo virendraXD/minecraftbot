@@ -16,6 +16,7 @@ const fs = require('fs');
 // const readFile = util.promisify(fs.readFile);
 // const { parse } = require('prismarine-nbt');
 const path = require('path');
+const { status } = require('minecraft-server-util');
 // const schematicModule = require('prismarine-schematic');
 
 // const mcData = require('minecraft-data');
@@ -27,26 +28,60 @@ const path = require('path');
 // const { loadSchematic } = schematicModule;
 
 // import { AutoBuilder } from 'mineflayer-builder'; // optional smart builder helper
+const SERVER_HOST = 'The_Boyss.aternos.me'; // Replace with your server's IP or hostname
+const SERVER_PORT = 34796;
+const BOT_USERNAME = 'Aisha';
 
-const bot = mineflayer.createBot({
-  host: 'localhost',
-  port: 25565,
-  username: 'Aisha',
-  version: '1.20.1'
-});
+let bot = null;
+let checkInterval = null;
+let inactivityTimer = null;
 
-bot.loadPlugin(pathfinder);
+function pingServerAndDecide() {
+  status(SERVER_HOST, SERVER_PORT)
+    .then(response => {
+      const players = response.players?.sample || [];
+      const realPlayers = players.filter(p => p.name !== BOT_USERNAME);
 
-let mcData;
-// let schematic;
+      console.log(`[Ping] Found ${realPlayers.length} real players online:`, realPlayers.map(p => p.name));
 
-// Auto-register/login
-// const REGISTER_CMD = '/register strongPassword123 strongPassword123';
-// const LOGIN_CMD = '/login strongPassword123';
+      if (!bot && realPlayers.length > 0) {
+        console.log("🎮 Players detected. Joining server...");
+        startBot();
+      }
+    })
+    .catch(() => {
+      console.log("❌ Server offline.");
+      stopBot(); // optional
+    });
+}
 
-// const mcData = require('minecraft-data')(bot.version); // Ensure this is properly initialized with the correct version
+// Start ping loop every 30 seconds
+checkInterval = setInterval(pingServerAndDecide, 30_000);
 
-bot.once('spawn', async () => {
+function startBot() {
+  bot = mineflayer.createBot({
+    host: SERVER_HOST,  //ip for aternos: knightbot.duckdns.org
+    port: SERVER_PORT,        // port for aternos: 34796
+    username: BOT_USERNAME,
+    version: '1.20.1'
+  });
+
+  bot.loadPlugin(pathfinder);
+
+  bot.on('login', () => {
+    console.log("🤖 Bot joined.");
+  });
+
+  bot.on('end', () => {
+    console.log("🔌 Bot disconnected.");
+    bot = null;
+  });
+
+  bot.on('error', (err) => {
+    console.log("❗ Bot error:", err.message);
+  });  
+
+  bot.once('spawn', async () => {
   try {
     // Ensure mcData and registry are properly loaded
     // if (!mcData || !mcData.registry || !mcData.registry.biomes) {
@@ -77,6 +112,33 @@ bot.once('spawn', async () => {
 
     // Load auto-eat plugin
     bot.loadPlugin(autoEat);
+  
+    bot.on('message', (jsonMsg) => {
+      const msg = jsonMsg.toString().toLowerCase();
+      const password = 'strongPassword123';
+    
+      if (msg.includes('/register')) {
+        bot.chat(`/register ${password} ${password}`);
+      } else if (msg.includes('/login')) {
+        bot.chat(`/login ${password}`);
+      }
+    });
+
+    let lastFoodRequest = 0;
+    const FOOD_REQUEST_COOLDOWN = 30 * 1000; // 30 seconds
+
+    bot.on('health', () => {
+      if (bot.food < 14 && Date.now() - lastFoodRequest > FOOD_REQUEST_COOLDOWN) {
+        bot.chat("🍗 I'm hungry! Please give me some food.");
+        lastFoodRequest = Date.now();
+      }
+    
+      // Only auto-eat if bot's food level is low and it has food in inventory 
+      if (bot.food < 14 && bot.inventory.items().some(i => i.name.includes('bread') || i.name.includes('steak'))) {
+        bot.chat("🍗 I'm hungry! Eating now.");
+        bot.autoEat.enableAuto(); // Automatically start eating based on the options set
+      }
+    });
 
     bot.once('inventory', () => {
       bot.autoEat.enableAuto();
@@ -136,47 +198,6 @@ bot.once('spawn', async () => {
         // Recreate the bot here
       }, 5000);
     });
-
-
-    // Load and use the schematic
-    // const schematicData = await fs.readFile('./schematics/sayan_gamer123.schem');
-    // const schematic = await Schematic.read(schematicData);
-
-    // console.log('✅ Schematic loaded successfully.');
-
-    console.log('✅ Bot spawned and ready.');
-  } catch (err) {
-    console.error('🚨 Error during spawn setup:', err);
-  }
-});
-
-
-bot.on('message', (jsonMsg) => {
-  const msg = jsonMsg.toString().toLowerCase();
-  const password = 'strongPassword123';
-
-  if (msg.includes('/register')) {
-    bot.chat(`/register ${password} ${password}`);
-  } else if (msg.includes('/login')) {
-    bot.chat(`/login ${password}`);
-  }
-});
-
-let lastFoodRequest = 0;
-const FOOD_REQUEST_COOLDOWN = 30 * 1000; // 30 seconds
-
-bot.on('health', () => {
-  if (bot.food < 14 && Date.now() - lastFoodRequest > FOOD_REQUEST_COOLDOWN) {
-    bot.chat("🍗 I'm hungry! Please give me some food.");
-    lastFoodRequest = Date.now();
-  }
-
-  // Only auto-eat if bot's food level is low and it has food in inventory 
-  if (bot.food < 14 && bot.inventory.items().some(i => i.name.includes('bread') || i.name.includes('steak'))) {
-    bot.chat("🍗 I'm hungry! Eating now.");
-    bot.autoEat.enableAuto(); // Automatically start eating based on the options set
-  }
-});
 
 let isCancelled = false;
 
@@ -366,7 +387,75 @@ bot.on('chat', async (username, message) => {
       bot.chat('Failed to deliver items.');
     }
   }
-});
+});    
+
+    // Load and use the schematic
+    // const schematicData = await fs.readFile('./schematics/sayan_gamer123.schem');
+    // const schematic = await Schematic.read(schematicData);
+
+    // console.log('✅ Schematic loaded successfully.');
+
+    console.log('✅ Bot spawned and ready.');
+  } catch (err) {
+    console.error('🚨 Error during spawn setup:', err);
+  }
+  });
+  
+  // Inactivity check every 10 sec status
+  setInterval(() => {
+    if (!bot?.players) return;
+
+    const otherPlayers = Object.values(bot.players)
+      .filter(p => p.username !== BOT_USERNAME && p.entity);
+
+    if (otherPlayers.length === 0) {
+      if (!inactivityTimer) {
+        console.log("🕒 No players detected. Starting 60s timer...");
+        inactivityTimer = setTimeout(() => {
+          console.log("⏹️ No players joined. Disconnecting bot.");
+          stopBot();
+        }, 60_000);
+      }
+    } else {
+      if (inactivityTimer) {
+        console.log("🟢 Players returned. Clearing inactivity timer.");
+        clearTimeout(inactivityTimer);
+        inactivityTimer = null;
+      }
+    }
+  }, 10_000);
+}
+
+function stopBot() {
+  if (bot) {
+    bot.quit("No players online.");
+    bot = null;
+  }
+  if (inactivityTimer) {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = null;
+  }
+}
+
+
+
+let mcData;
+// let schematic;
+
+// Auto-register/login
+// const REGISTER_CMD = '/register strongPassword123 strongPassword123';
+// const LOGIN_CMD = '/login strongPassword123';
+
+// const mcData = require('minecraft-data')(bot.version); // Ensure this is properly initialized with the correct version
+
+
+
+
+
+
+
+
+
 
 async function chatWithAI(message) {
   try {
