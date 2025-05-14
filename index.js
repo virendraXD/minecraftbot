@@ -199,7 +199,7 @@ function startBot() {
       }, 5000);
     });
 
-let isCancelled = false;
+
 
 bot.on('chat', async (username, message) => {
   if (username === bot.username) return; // Ignore bot's own messages
@@ -600,6 +600,8 @@ async function equipAxe() {
     }
   }
 }
+
+let isCancelled = false;
 
 async function collectWood(targetCount = 64) {
   // if (!hasAxe()) {
