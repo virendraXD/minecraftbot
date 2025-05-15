@@ -14,9 +14,9 @@ const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
 //Aternos IP: The_Boyss.aternos.me:34796
-const SERVER_HOST = 'localhost'; // Replace with your server's IP or hostname
+const SERVER_HOST = 'The_Boyss.aternos.me'; // Replace with your server's IP or hostname
 const SERVER_PORT = 25565;
-const BOT_USERNAME = 'Aisha';
+const BOT_USERNAME = '34796';
 const pickUpCooldown = 5000;
 
 let bot = null;
