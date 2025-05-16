@@ -13,89 +13,123 @@ const { Vec3 } = require('vec3');
 const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
-//Aternos IP: The_Boyss.aternos.me:34796
-const SERVER_HOST = 'The_Boyss.aternos.me'; // Replace with your server's IP or hostname
-const SERVER_PORT = 25565;
-const BOT_USERNAME = '34796';
+
+//Aternos IP: The_Boyss.aternos.me:34796 password
+const SERVER_HOST = 'The_Boyss.aternos.me';
+const SERVER_PORT = 34796;
+const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
+const MAX_RETRIES = 3; // Number of retries before quitting
+// const checkInterval = 60000; // 1 minute
+
+
+status(SERVER_HOST, SERVER_PORT)
+  .then(res => console.log('Server online:', res))
+  .catch(err => console.log('Server offline:', err.message));
+
+// things to check before deploy 
+// 1. name ip port version
+// 2. login info
 
 let bot = null;
 // let checkInterval = null;
 let inactivityTimer = null;
 let lastPlayerActivity = Date.now(); // Track last real player activity
-let lastActivity = Date.now(); // initialize with current time
+let lastActivity = Date.now(); // initialize with current time  stopBot
 let mcData;
 let isCancelled = false;  
 let lastPickUpTime = 0;
 let checkInterval;
+// let playerCheckInterval;
+let playerRetryAttempts = 0;
+
+let serverPingInterval = null;
+let playerCheckInterval = null;
+let playerQuitCheckInterval = null;
+let botRunning = false; // To prevent multiple instances 
+let serverStatusInterval = null;
 
 
-function pingServerAndDecide() {
-  status(SERVER_HOST, SERVER_PORT)
-    .then(response => {
-      const players = response.players?.sample || [];
-      const realPlayers = players.filter(p => p.name !== BOT_USERNAME);
+const http = require('http');
+const { version } = require('os');
 
-      console.log(`[Ping] Found ${realPlayers.length} real players online:`, realPlayers.map(p => p.name));
+const port = process.env.PORT || 3000;
 
-      if (!bot && realPlayers.length > 0) {
-        console.log("🎮 Players detected. Joining server...");
+http.createServer((req, res) => {
+  res.writeHead(200, {'Content-Type': 'text/plain'});
+  res.end('Bot is running!\n');
+}).listen(port, () => {
+  console.log(`🌐 HTTP server running on port ${port}`);
+});
+
+async function pingServerAndDecide() {
+  try {
+    const result = await status(SERVER_HOST, SERVER_PORT);
+    console.log("✅ Server online.");
+    
+    const onlinePlayers = result.players.online;
+
+    if (onlinePlayers > 0) {
+      console.log(`👤 ${onlinePlayers} real player(s) online.`);
+      playerRetryAttempts = 0; // reset retries
+
+      if (!botRunning) {
         startBot();
-      } else if (bot && realPlayers.length > 0) {
-        // Reset activity time if bot is already running
-        lastPlayerActivity = Date.now();
       }
-    })
-    .catch(() => {
-      console.log("❌ Server offline.");
-      stopBot(); // optional
-    });
+    } else {
+      playerRetryAttempts++;
+      console.log(`🕵️ No real players online. Attempt ${playerRetryAttempts}/${MAX_RETRIES}`);
+
+      if (playerRetryAttempts >= MAX_RETRIES) {
+        console.log("🚫 Max retries reached. Stopping bot if running.");
+        stopBot();
+      }
+    }
+  } catch (error) {
+    console.log("❌ Server offline or unreachable.");
+    // Optionally, stop bot if server offline for long
+  }
 }
 
-let playerCheckInterval;
-let playerRetryAttempts = 0;
-const MAX_RETRIES = 3; // Number of retries before quitting
+// Always start checking every 30 seconds
+checkInterval = setInterval(pingServerAndDecide, 30_000);
+pingServerAndDecide(); // immediate first check
+
 
 function startPlayerCheckLoop() {
   if (playerCheckInterval) clearInterval(playerCheckInterval);
 
   playerCheckInterval = setInterval(() => {
-    const playersOnline = Object.values(bot.players).filter(p => !p.bot);
-    const realPlayerNames = playersOnline.map(p => p.username);
+    // Get all players currently online (including the bot itself)
+    const playersOnline = Object.values(bot.players || {});
+
+    // Filter out the bot itself using bot.username
+    const realPlayers = playersOnline.filter(p => p.username !== bot.username);
+
+    const realPlayerNames = realPlayers.map(p => p.username);
 
     console.log(`[Ping] Found ${realPlayerNames.length} real players online: ${JSON.stringify(realPlayerNames)}`);
 
     if (realPlayerNames.length > 0) {
-      clearInterval(playerCheckInterval);
       playerRetryAttempts = 0;
       console.log("✅ Real players detected. Continuing bot tasks...");
-      // Continue bot behavior here
     } else {
       playerRetryAttempts++;
       console.log(`No players online. Attempt ${playerRetryAttempts}/${MAX_RETRIES}`);
 
       if (playerRetryAttempts >= MAX_RETRIES) {
         clearInterval(playerCheckInterval);
+        playerCheckInterval = null;
         console.log("🚫 Max retries reached. Disconnecting bot...");
-        bot.quit();
+        if (bot) bot.quit();
       }
     }
   }, 10000); // Check every 10 seconds
 }
 
-// bot.on('spawn', () => {
-//   console.log("✅ Bot spawned and ready.");
-//   startPlayerCheckLoop();
-// });
 
-// bot.on('end', () => {
-//   console.log("🔌 Bot disconnected. Attempting to reconnect...");
-//   setTimeout(createBot, 5000);
-// });
-
-
-// Start ping loop every 30 seconds
-checkInterval = setInterval(pingServerAndDecide, 30_000);
+// Start server ping loop every 30 seconds
+serverPingInterval = setInterval(pingServerAndDecide, 30_000);
 
 setInterval(() => {
   const now = Date.now();
@@ -107,12 +141,33 @@ setInterval(() => {
   }
 }, 60 * 1000); // check every 1 minute
 //inactivityTimer 
+
 function startBot() {
+  if (playerRetryAttempts >= MAX_RETRIES) {
+    console.log("🚫 Not starting bot because max player retry attempts reached.");
+    return;
+  }
+
+  if (botRunning) {
+    console.log("⚠️ Bot already running. Skipping start.");
+    return;
+  }
+
+  // Clear any intervals that might conflict before creating bot Server offline 
+  if (playerCheckInterval) {
+    clearInterval(playerCheckInterval);
+    playerCheckInterval = null;
+  }
+
+  console.log("🚀 Starting bot...");
+  botRunning = true;
+
   bot = mineflayer.createBot({
     host: SERVER_HOST,  //ip for aternos: knightbot.duckdns.org
     port: SERVER_PORT,        // port for aternos: 34796
     username: BOT_USERNAME,
-    version: '1.20.1'
+    auth: 'offline',
+    version: false
   });
 
   bot.loadPlugin(pathfinder);
@@ -122,20 +177,45 @@ function startBot() {
   });
 
   bot.on('end', () => {
-    console.log("Bot disconnected. Clearing player check loop.");
-    clearInterval(checkInterval);
-    setTimeout(createBot, 5000);
-  });
+    console.log("⛔ Bot disconnected. Clearing player check interval.");
+    botRunning = false;
 
-  bot.on('error', (err) => {
-    console.log("❗ Bot error:", err.message);
-  });  
+    if (playerCheckInterval) {
+      clearInterval(playerCheckInterval);
+      playerCheckInterval = null;
+    }
+
+    if (reconnectAttempts < MAX_RETRIES) {
+      reconnectAttempts++;
+      console.log(`🔁 Attempting to reconnect in 5 seconds... (${reconnectAttempts}/${MAX_RETRIES})`);
+      setTimeout(startBot, 5000);
+    } else {
+      console.log("🚫 Max reconnect attempts reached. Bot will not restart.");
+    }
+  });
+  
+  bot.on('kicked', (reason) => console.log('❌ Kicked:', reason));
+  bot.on('error', (err) => console.log("❗ Bot error:", err.message));
 
   bot.once('spawn', async () => {
   try {
+    reconnectAttempts = 0;
+    console.log("Bot spawned. Starting player presence check loop.");
     startPlayerCheckLoop();
-    console.log("Bot spawned. Starting player check loop.");
-    checkInterval = setInterval(() => checkForPlayersAndQuit(bot), 30 * 1000);
+    // console.log("Bot spawned. Starting player check loop.");
+    // checkInterval = setInterval(() => checkForPlayersAndQuit(bot), 30 * 1000);
+    
+    // console.log("🧠 Bot spawned. Will monitor players in 10s...");
+
+    // setTimeout(() => {
+    //   startIngamePlayerMonitor(bot, BOT_USERNAME, SERVER_HOST, () => {
+    //     startOfflinePlayerCheck({
+    //       serverHost: SERVER_HOST,
+    //       botUsername: BOT_USERNAME,
+    //       onReadyToJoin: startBot
+    //     });
+    //   });
+    // }, 10000); // 10 sec cooldown
 
     mcData = require('minecraft-data')(bot.version);
 
@@ -151,18 +231,18 @@ function startBot() {
 
     // Load auto-eat plugin bot.on('c
     bot.loadPlugin(autoEat);
-  
-    bot.on('message', (jsonMsg) => {
-      const msg = jsonMsg.toString().toLowerCase();
-      const password = 'strongPassword123';
-    
-      if (msg.includes('/register')) {
-        bot.chat(`/register ${password} ${password}`);
-      } else if (msg.includes('/login')) {
-        bot.chat(`/login ${password}`);
-      }
+
+    bot.once('inventory', () => {
+      bot.autoEat.enableAuto();
+      bot.autoEat.options = {
+        priority: 'auto',
+        startAt: 16,
+        bannedFood: [],
+        healthThreshold: 14
+      };
     });
 
+    // Hunger system
     let lastFoodRequest = 0;
     const FOOD_REQUEST_COOLDOWN = 30 * 1000; // 30 seconds
 
@@ -179,61 +259,32 @@ function startBot() {
       }
     });
 
-    bot.once('inventory', () => {
-      bot.autoEat.enableAuto();
-      bot.autoEat.options = {
-        priority: 'auto',
-        startAt: 16,
-        bannedFood: [],
-        healthThreshold: 14
-      };
-    });
+    bot.autoEat.on('eatStart', item => console.log(`🍽️ Eating ${item?.name || 'something'}`));
+    bot.autoEat.on('eatFinish', item => console.log(`✅ Ate ${item?.name || 'something'}`));
+    bot.autoEat.on('eatFail', err => console.error('❌ Eat fail:', err));
 
-    // bot.on('message', (jsonMsg) => {
-    //   const msg = jsonMsg.toString();
-    //   console.log('📩 Server says:', msg);
-    // });
-
-    // Safer event logs 💬 realPlayers.length
-    bot.autoEat.on('eatStart', (item) => {
-      console.log(`🍽️ Started eating ${item?.name || 'something (unknown)'}`);
-    });
-
-    bot.autoEat.on('eatFinish', (item) => {
-      console.log(`✅ Finished eating ${item?.name || 'something (unknown)'}`);
-    });
-
-    bot.autoEat.on('eatFail', (error) => {
-      console.error('❌ Eating failed:', error);
-    });
-
-    // Pathfinding logs 
-    bot.on('path_update', (r) => {
+    // Pathfinding feedback
+    bot.on('path_update', r => {
       const nodesPerTick = (r.visitedNodes * 50 / r.time).toFixed(2);
-      console.log(`📍 I can get there in ${r.path.length} moves. Computation took ${r.time.toFixed(2)} ms (${r.visitedNodes} nodes, ${nodesPerTick} nodes/tick)`);
+      console.log(`📍 ${r.path.length} moves. Took ${r.time.toFixed(2)} ms (${nodesPerTick} nodes/tick)`);
     });
 
-    bot.on('goal_reached', () => {
-      console.log('🎯 Goal reached!');
+    bot.on('goal_reached', () => console.log('🎯 Goal reached.'));
+    bot.on('path_reset', reason => console.log(`♻️ Path reset: ${reason}`));
+
+      
+    bot.on('message', (jsonMsg) => {
+      const msg = jsonMsg.toString().toLowerCase();
+      const password = 'strongPassword123';
+    
+      if (msg.includes('/register')) {
+        bot.chat(`/register ${password} ${password}`);
+      } else if (msg.includes('/login')) {
+        bot.chat(`/login ${password}`);
+      }
     });
 
-    bot.on('path_reset', (reason) => {
-      console.log(`♻️ Path was reset for reason: ${reason}`);
-    });
-
-    bot.on('error', (err) => {
-      console.error('❌ Bot error:', err);
-    });
-
-    bot.on('end', () => {
-      console.log('🔌 Bot disconnected. Attempting to reconnect...');
-      setTimeout(() => {
-        console.log("🔁 Reconnecting bot...");
-        startBot();
-      }, 5000);
-    });
-
-bot.on('chat', async (username, message) => {
+  bot.on('chat', async (username, message) => {
   if (username === bot.username) return; // Ignore bot's own messages
 
   lastPlayerActivity = Date.now(); // Reset activity timer on real player chat
@@ -253,7 +304,7 @@ bot.on('chat', async (username, message) => {
   const cmd = args.shift().toLowerCase(); // Get the command by removing '!' and making it lowercase
 
   if (cmd === 'help') {
-    bot.chat('📜 Commands 1/2: !come | !follow | !avoid | !stop | !collect wood | !put in chest');
+    bot.chat('📜 Commands 1/2: !come | !follow | !avoid | !stop | !collect wood | !put in chest | !getlocation <username>');
     setTimeout(() => {
       bot.chat('📜 Commands 2/2: !goto x y z | !break | !place <item> | !deliver | !chat <msg>');
     }, 1000);
@@ -401,7 +452,7 @@ bot.on('chat', async (username, message) => {
       bot.chat('Failed to deliver items.');
     }
   }
-});
+  });
 
     console.log('✅ Bot spawned and ready.');
   } catch (err) {
@@ -416,7 +467,7 @@ bot.on('chat', async (username, message) => {
 // Update activity on chat
 
 
-// Update activity on player join
+// Update activity on player join createBot
 bot.on('playerJoined', (player) => {
   if (player.username !== bot.username) {
     console.log(`🎉 ${player.username} joined.`);
@@ -424,7 +475,7 @@ bot.on('playerJoined', (player) => {
   }
 });
 
-// Update activity on player movement entitygone
+// Update activity on player movement entitygone checkInterval
 bot.on('entityMoved', (entity) => {
   if (
     entity.type === 'player' &&
@@ -445,37 +496,50 @@ bot.on('entityGone', (entity) => {
 });
 }
 
-function checkForPlayersAndQuit(bot) {
-  // If bot is disconnected or not ready, skip startPlayerCheckLoop
-  if (!bot || !bot.players) {
-    console.log("Bot not ready or disconnected. Skipping player check.");
-    return;
-  }
+// function checkForPlayersAndQuit(bot) {
+//   // If bot is disconnected or not ready, skip startPlayerCheckLoop
+//   if (!bot || !bot.players) {
+//     console.log("Bot not ready or disconnected. Skipping player check.");
+//     return;
+//   }
 
-  const realPlayers = Object.values(bot.players).filter(
-    (p) => p?.username && p.username !== bot.username
-  );
+//   const realPlayers = Object.values(bot.players).filter(
+//     (p) => p?.username && p.username !== bot.username
+//   );
 
-  if (realPlayers.length === 0) {
-    console.log("No players online. Quitting bot...");
-    clearInterval(checkInterval); // stop checking Bot disconnected
-    bot.quit();
-  } else {
-    console.log(`Players online: ${realPlayers.map(p => p.username).join(", ")}`);
-  }
-}
-
+//   if (realPlayers.length === 0) {
+//     console.log("No players online. Quitting bot...");
+//     clearInterval(checkInterval); // stop checking Bot disconnected real players online
+//     bot.quit();
+//   } else {
+//     console.log(`Players online: ${realPlayers.map(p => p.username).join(", ")}`);
+//   }
+// }
 
 function stopBot() {
   if (bot) {
+    console.log("🛑 Stopping bot: No players online or max retries reached.");
     bot.quit("No players online.");
     bot = null;
   }
-  if (inactivityTimer) {
-    clearTimeout(inactivityTimer);
-    inactivityTimer = null;
+
+  if (serverPingInterval) {
+    clearInterval(serverPingInterval);
+    serverPingInterval = null;
   }
+  if (playerCheckInterval) {
+    clearInterval(playerCheckInterval);
+    playerCheckInterval = null;
+  }
+  if (playerQuitCheckInterval) {
+    clearInterval(playerQuitCheckInterval);
+    playerQuitCheckInterval = null;
+  }
+
+  botRunning = false;
 }
+// Start initial check loop
+pingServerAndDecide();
 
 async function chatWithAI(message) {
   try {
@@ -591,11 +655,6 @@ async function equipAxe() {
 }
 
 async function collectWood(targetCount = 64) {
-  // if (!hasAxe()) {
-  //   bot.chat("🪓 I need at least a stone axe to start chopping.");
-  //   return;
-  // }
-
   await equipAxe();
 
   const minedPositions = new Set();
