@@ -15,8 +15,8 @@ const path = require('path');
 const { status } = require('minecraft-server-util');
 
 //Aternos IP: The_Boyss.aternos.me:34796 password
-const SERVER_HOST = 'localhost';
-const SERVER_PORT = 25565;
+const SERVER_HOST = 'The_Boyss.aternos.me';
+const SERVER_PORT = 34796;
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; // Number of retries before quitting
@@ -48,7 +48,7 @@ let playerCheckInterval = null;
 let playerQuitCheckInterval = null;
 let botRunning = false; // To prevent multiple instances 
 let serverStatusInterval = null;
-
+let cooldownTimer = null;
 
 const http = require('http');
 const { version } = require('os');
@@ -67,12 +67,13 @@ async function pingServerAndDecide() {
     const result = await status(SERVER_HOST, SERVER_PORT);
     console.log("✅ Server online.");
     
+    // Count only real players (assuming real players count = onlinePlayers)
     const onlinePlayers = result.players.online;
 
     console.log("Checking real player count...");
     if (onlinePlayers > 0) {
       console.log(`👤 ${onlinePlayers} real player(s) online.`);
-      playerRetryAttempts = 0; // reset retries
+      playerRetryAttempts = 0; // ✅ Reset retry attempts
 
       if (!botRunning) {
         startBot();
@@ -80,17 +81,27 @@ async function pingServerAndDecide() {
     } else {
       playerRetryAttempts++;
       console.log(`🕵️ No real players online. Attempt ${playerRetryAttempts}/${MAX_RETRIES}`);
-
+      
       if (playerRetryAttempts >= MAX_RETRIES) {
         console.log("🚫 Max retries reached. Stopping bot if running.");
-        stopBot();
+        if (botRunning) {
+          stopBot();
+        }
+        resetRetryCooldown(); // 🧠 Allow retries later
       }
     }
   } catch (error) {
-    console.log("❌ Server offline or unreachable.");
-    // Optionally, stop bot if server offline for long [Ping]
+    // Check if error is connection refused, ignore or handle quietly
+    if (error.code === 'ECONNREFUSED' || (error.errors && error.errors.some(e => e.code === 'ECONNREFUSED'))) {
+      // Silently ignore or just a simple log
+      console.log("⚠️ Server offline (connection refused). Ignoring error.");
+    } else {
+      // For other errors, log normally or handle as needed
+      console.error("❌ Unexpected error pinging server:", error);
+    }
   }
 }
+
 
 // Always start checking every 30 seconds
 // checkInterval = setInterval(pingServerAndDecide, 30_000);
@@ -495,6 +506,16 @@ bot.on('entityGone', (entity) => {
     console.error('❌ entityGone error:', err);
   }
 });
+}
+
+function resetRetryCooldown() {
+  if (cooldownTimer) return; // avoid duplicates
+  console.log("⏳ Cooldown started. Will reset retry counter in 2 minutes.");
+  cooldownTimer = setTimeout(() => {
+    playerRetryAttempts = 0;
+    cooldownTimer = null;
+    console.log("✅ Retry cooldown ended. Bot is allowed to reconnect.");
+  }, 2 * 60 * 1000); // 2 minutes
 }
 
 // function checkForPlayersAndQuit(bot) {
