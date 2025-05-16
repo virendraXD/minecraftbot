@@ -15,8 +15,8 @@ const path = require('path');
 const { status } = require('minecraft-server-util');
 
 //Aternos IP: The_Boyss.aternos.me:34796 password
-const SERVER_HOST = 'The_Boyss.aternos.me';
-const SERVER_PORT = 34796;
+const SERVER_HOST = 'localhost';
+const SERVER_PORT = 25565;
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; // Number of retries before quitting
@@ -71,7 +71,7 @@ async function pingServerAndDecide() {
 
     console.log("Checking real player count...");
     if (onlinePlayers > 0) {
-      // console.log(`👤 ${onlinePlayers-1} real player(s) online.`);
+      console.log(`👤 ${onlinePlayers} real player(s) online.`);
       playerRetryAttempts = 0; // reset retries
 
       if (!botRunning) {
