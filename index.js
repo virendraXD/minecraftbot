@@ -23,9 +23,9 @@ const MAX_RETRIES = 3; // Number of retries before quitting
 // const checkInterval = 60000; // 1 minute
 
 
-status(SERVER_HOST, SERVER_PORT)
-  .then(res => console.log('Server online:', res))
-  .catch(err => console.log('Server offline:', err.message));
+// status(SERVER_HOST, SERVER_PORT)
+//   .then(res => console.log('Server online:', res))
+//   .catch(err => console.log('Server offline:', err.message));
 
 // things to check before deploy 
 // 1. name ip port version
@@ -35,7 +35,7 @@ let bot = null;
 // let checkInterval = null;
 let inactivityTimer = null;
 let lastPlayerActivity = Date.now(); // Track last real player activity
-let lastActivity = Date.now(); // initialize with current time  stopBot
+let lastActivity = Date.now(); // initialize with current time  setInterval
 let mcData;
 let isCancelled = false;  
 let lastPickUpTime = 0;
@@ -69,8 +69,9 @@ async function pingServerAndDecide() {
     
     const onlinePlayers = result.players.online;
 
+    console.log("Checking real player count...");
     if (onlinePlayers > 0) {
-      console.log(`👤 ${onlinePlayers} real player(s) online.`);
+      // console.log(`👤 ${onlinePlayers-1} real player(s) online.`);
       playerRetryAttempts = 0; // reset retries
 
       if (!botRunning) {
@@ -87,12 +88,12 @@ async function pingServerAndDecide() {
     }
   } catch (error) {
     console.log("❌ Server offline or unreachable.");
-    // Optionally, stop bot if server offline for long
+    // Optionally, stop bot if server offline for long [Ping]
   }
 }
 
 // Always start checking every 30 seconds
-checkInterval = setInterval(pingServerAndDecide, 30_000);
+// checkInterval = setInterval(pingServerAndDecide, 30_000);
 pingServerAndDecide(); // immediate first check
 
 
@@ -153,7 +154,7 @@ function startBot() {
     return;
   }
 
-  // Clear any intervals that might conflict before creating bot Server offline 
+  // Clear any intervals that might conflict before creating bot Server offline  player(s) online
   if (playerCheckInterval) {
     clearInterval(playerCheckInterval);
     playerCheckInterval = null;
@@ -167,7 +168,7 @@ function startBot() {
     port: SERVER_PORT,        // port for aternos: 34796
     username: BOT_USERNAME,
     auth: 'offline',
-    version: false
+    version: '1.20.1'
   });
 
   bot.loadPlugin(pathfinder);
