@@ -13,14 +13,14 @@ const { Vec3 } = require('vec3');
 const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
-
+// Virendra.minehut.gg:25565
 //Aternos IP: The_Boyss.aternos.me:34796 password
 const SERVER_HOST = 'The_Boyss.aternos.me';
-const SERVER_PORT = 34796;
+const SERVER_PORT = 34796; // 19132 for minehut
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; // Number of retries before quitting
-// const checkInterval = 60000; // 1 minute
+// const checkInterval = 60000; // 1 minute Unexpected error pinging server
 
 
 // status(SERVER_HOST, SERVER_PORT)
@@ -178,8 +178,8 @@ function startBot() {
     host: SERVER_HOST,  //ip for aternos: knightbot.duckdns.org
     port: SERVER_PORT,        // port for aternos: 34796
     username: BOT_USERNAME,
-    auth: 'offline',
-    version: '1.20.1'
+    // auth: 'offline',
+    version: false
   });
 
   bot.loadPlugin(pathfinder);
