@@ -20,9 +20,9 @@ const { setupCombat } = require('./combat');
 const { equipBestGear } = require('./equipBestGear');
 
 // Virendra.minehut.gg:25565
-//Aternos IP: The_Boyss.aternos.me:34796 password
-const SERVER_HOST = 'localhost';
-const SERVER_PORT = 25565; // 19132 for minehut
+//Aternos IP: The_Boyss.aternos.me:34796 
+const SERVER_HOST = 'The_Boyss.aternos.me';
+const SERVER_PORT = 34796; // 19132 for minehut
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; // Number of retries before quitting
