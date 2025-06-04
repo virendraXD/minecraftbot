@@ -2,26 +2,44 @@ require('dotenv').config();
 
 const axios = require('axios');
 const mineflayer = require('mineflayer');
+const pvp = require('mineflayer-pvp').plugin;
 const pathfinderPlugin = require('mineflayer-pathfinder');
 const { pathfinder, Movements, goals } = pathfinderPlugin;
 const {
   GoalNear, GoalBlock, GoalXZ, GoalY,
   GoalInvert, GoalFollow, GoalBreakBlock, GoalPlaceBlock, GoalLookAtBlock
 } = goals;
+
 const { loader: autoEat } = require('mineflayer-auto-eat');
 const { Vec3 } = require('vec3');
 const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
+const chalk = require('chalk');
+// File Importing
+const { setupCombat } = require('./combat');
+const { equipBestGear } = require('./equipBestGear');
+
 // Virendra.minehut.gg:25565
 //Aternos IP: The_Boyss.aternos.me:34796 password
-const SERVER_HOST = 'The_Boyss.aternos.me';
-const SERVER_PORT = 34796; // 19132 for minehut
+const SERVER_HOST = 'localhost';
+const SERVER_PORT = 25565; // 19132 for minehut
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; // Number of retries before quitting
+const FLEE_HEALTH = 6; // 3 hearts
 // const checkInterval = 60000; // 1 minute Unexpected error pinging server
 
+const log = {
+  info: chalk.blue.bold,          // General info
+  success: chalk.green.bold,      // Success messages
+  warn: chalk.yellow.bold,        // Warnings
+  error: chalk.red.bold,          // Errors
+  ping: chalk.cyan,               // Server pinging
+  bot: chalk.magenta,             // Bot-specific logs
+  event: chalk.hex('#FFA500'),    // Custom color for events
+  player: chalk.greenBright,      // Player-related info
+};
 
 // status(SERVER_HOST, SERVER_PORT)
 //   .then(res => console.log('Server online:', res))
@@ -46,7 +64,7 @@ let playerRetryAttempts = 0;
 let serverPingInterval = null;
 let playerCheckInterval = null;
 let playerQuitCheckInterval = null;
-let botRunning = false; // To prevent multiple instances 
+let botRunning = false; // To prevent multiple instances  
 let serverStatusInterval = null;
 let cooldownTimer = null;
 
@@ -65,7 +83,7 @@ http.createServer((req, res) => {
 async function pingServerAndDecide() {
   try {
     const result = await status(SERVER_HOST, SERVER_PORT);
-    console.log("✅ Server online.");
+    console.log(chalk.green("✅ Server online."));
     
     // Count only real players (assuming real players count = onlinePlayers)
     const onlinePlayers = result.players.online;
@@ -73,21 +91,21 @@ async function pingServerAndDecide() {
     console.log("Checking real player count...");
     if (onlinePlayers > 0) {
       console.log(`👤 ${onlinePlayers} real player(s) online.`);
-      playerRetryAttempts = 0; // ✅ Reset retry attempts
+      playerRetryAttempts = 0; // ✅ Reset retry attempts Real players
 
       if (!botRunning) {
         startBot();
       }
     } else {
       playerRetryAttempts++;
-      console.log(`🕵️ No real players online. Attempt ${playerRetryAttempts}/${MAX_RETRIES}`);
+      console.log(chalk.cyan(`🕵️ No real players online. Attempt ${playerRetryAttempts}/${MAX_RETRIES}`));
       
       if (playerRetryAttempts >= MAX_RETRIES) {
         console.log("🚫 Max retries reached. Stopping bot if running.");
         if (botRunning) {
           stopBot();
         }
-        resetRetryCooldown(); // 🧠 Allow retries later
+        resetRetryCooldown(); // 🧠 Allow retries later [Ping]
       }
     }
   } catch (error) {
@@ -102,17 +120,15 @@ async function pingServerAndDecide() {
   }
 }
 
-
 // Always start checking every 30 seconds
 // checkInterval = setInterval(pingServerAndDecide, 30_000);
 pingServerAndDecide(); // immediate first check
-
 
 function startPlayerCheckLoop() {
   if (playerCheckInterval) clearInterval(playerCheckInterval);
 
   playerCheckInterval = setInterval(() => {
-    // Get all players currently online (including the bot itself)
+    // Get all players currently online (including the bot itself) green
     const playersOnline = Object.values(bot.players || {});
 
     // Filter out the bot itself using bot.username
@@ -120,7 +136,7 @@ function startPlayerCheckLoop() {
 
     const realPlayerNames = realPlayers.map(p => p.username);
 
-    console.log(`[Ping] Found ${realPlayerNames.length} real players online: ${JSON.stringify(realPlayerNames)}`);
+    console.log(chalk.cyan(`[Ping] Found ${realPlayerNames.length} real players online: ${JSON.stringify(realPlayerNames)}`));
 
     if (realPlayerNames.length > 0) {
       playerRetryAttempts = 0;
@@ -182,6 +198,7 @@ function startBot() {
     version: false
   });
 
+  bot.loadPlugin(pvp);
   bot.loadPlugin(pathfinder);
 
   bot.on('login', () => {
@@ -227,9 +244,17 @@ function startBot() {
     //       onReadyToJoin: startBot
     //     });
     //   });
-    // }, 10000); // 10 sec cooldown
+    // }, 10000); // 10 sec cooldown and ready
 
     mcData = require('minecraft-data')(bot.version);
+
+    const allowedUsers = ['virendraXD', 'playerExample'];
+
+    // Setup Combat
+    setupCombat(bot, mcData, allowedUsers);
+
+    equipBestGear(bot);
+    setInterval(() => equipBestGear(bot), 5 * 60 * 1000); // every 5 minutes
 
     // Wait for inventory to be loaded
     await bot.waitForChunksToLoad?.();
@@ -241,6 +266,20 @@ function startBot() {
     defaultMove.scafoldingBlocks = [];
     bot.pathfinder.setMovements(defaultMove);
 
+    bot.on('physicsTick', () => {
+      // Example 1: Auto-heal (if you implement food-eating)
+      if (bot.health < 10) {
+        // tryEatFood(); // Your own food-eating logic
+      }
+    
+      // Example 2: Log position every few seconds
+      const now = Date.now();
+      if (!bot.lastTickTime || now - bot.lastTickTime > 5000) {
+        console.log(`📍 Position: ${bot.entity.position}`);
+        bot.lastTickTime = now;
+      }
+    });
+    
     // Load auto-eat plugin bot.on('c
     bot.loadPlugin(autoEat);
 
@@ -466,7 +505,7 @@ function startBot() {
   }
   });
 
-    console.log('✅ Bot spawned and ready.');
+    console.log(chalk.green.bold('✅ Bot spawned and ready.'));
   } catch (err) {
     console.error('🚨 Error during spawn setup:', err);
   }
@@ -507,6 +546,20 @@ bot.on('entityGone', (entity) => {
   }
 });
 }
+
+const readline = require('readline');
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+rl.on('line', (input) => {
+  if (bot && bot.chat) {
+    bot.chat(input); // Makes Aisha say your input
+  }
+});
+
 
 function resetRetryCooldown() {
   if (cooldownTimer) return; // avoid duplicates
