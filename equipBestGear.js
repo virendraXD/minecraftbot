@@ -33,8 +33,7 @@ async function equipBestGear(bot) {
   if (bestWeapon) {
     try {
       await bot.equip(bestWeapon, 'hand');
-    //bot.chat(`⚔️ Equipped better weapon: ${bestWeapon.name}`);
-      bot.chat(`⚔️ Equipped better weapon: ${bestWeapon.name}`);
+      console.log(`⚔️ Equipped better weapon: ${bestWeapon.name}`);
     } catch (err) {
       console.log(`⚠️ Could not equip weapon: ${err.message}`);
     }

@@ -9,7 +9,6 @@ const {
   GoalNear, GoalBlock, GoalXZ, GoalY,
   GoalInvert, GoalFollow, GoalBreakBlock, GoalPlaceBlock, GoalLookAtBlock
 } = goals;
-
 const { loader: autoEat } = require('mineflayer-auto-eat');
 const { Vec3 } = require('vec3');
 const fs = require('fs');
@@ -492,7 +491,7 @@ function startBot() {
             destEnd: chestWindow.slots.length
           });
         } catch (err) {
-          // Silently ignore transfer errors realPlayers.length
+          // Silently ignore transfer errors realPlayers.length bot.once('spawn'
         }
       }
 
@@ -510,12 +509,52 @@ function startBot() {
     console.error('🚨 Error during spawn setup:', err);
   }
   });
-  
-  // Inactivity check every 10 sec status targetName
-// let inactivityTimer = null;
-// let lastActivity = Date.now(); 
 
-// Update activity on chat
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+let currentInput = '';
+
+rl.on('line', (input) => {
+  currentInput = '';
+  const args = input.trim().split(' ');
+  const command = args.shift().toLowerCase();
+
+  if (!bot) return console.log('⛔ Bot not ready.');
+
+  if (command === 'say') {
+    bot.chat(args.join(' '));
+  } else if (command === 'pos') {
+    console.log(`📍 Position: ${bot.entity.position}`);
+  } else if (command === 'quit') {
+    console.log('👋 Quitting bot...');
+    bot.quit();
+    rl.close();
+  } else {
+    console.log(`❓ Unknown command: ${command}`);
+  }
+});
+
+// Patch console.log to preserve typing
+const origLog = console.log;
+console.log = (...args) => {
+  rl.output.write('\x1b[2K\r'); // clear line
+  origLog(...args);
+  rl.output.write(`> ${currentInput}`); // restore prompt
+};
+
+// Track input as user types
+rl.input.on('keypress', (c, k) => {
+  // This will not always work perfectly with deletions but helps
+  if (typeof c === 'string') {
+    currentInput += c;
+  } else if (k && k.name === 'backspace') {
+    currentInput = currentInput.slice(0, -1);
+  }
+});
+
 
 
 // Update activity on player join createBot
@@ -570,26 +609,6 @@ function resetRetryCooldown() {
     console.log("✅ Retry cooldown ended. Bot is allowed to reconnect.");
   }, 2 * 60 * 1000); // 2 minutes
 }
-
-// function checkForPlayersAndQuit(bot) {
-//   // If bot is disconnected or not ready, skip startPlayerCheckLoop
-//   if (!bot || !bot.players) {
-//     console.log("Bot not ready or disconnected. Skipping player check.");
-//     return;
-//   }
-
-//   const realPlayers = Object.values(bot.players).filter(
-//     (p) => p?.username && p.username !== bot.username
-//   );
-
-//   if (realPlayers.length === 0) {
-//     console.log("No players online. Quitting bot...");
-//     clearInterval(checkInterval); // stop checking Bot disconnected real players online
-//     bot.quit();
-//   } else {
-//     console.log(`Players online: ${realPlayers.map(p => p.username).join(", ")}`);
-//   }
-// }
 
 function stopBot() {
   if (bot) {
@@ -889,3 +908,4 @@ function rayTraceEntitySight(entity) {
 
   return targetBlock
 }
+
