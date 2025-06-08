@@ -374,7 +374,8 @@ function inject (bot) {
 
   bot._client.on('damage_event', (packet) => { // 1.20+
     const entity = bot.entities[packet.entityId]
-    bot.emit('entityHurt', entity)
+    const source = bot.entities[packet.sourceCauseId - 1] // damage_event : SourceCauseId : The ID + 1 of the entity responsible for the damage, if present. If not present, the value is 0
+    bot.emit('entityHurt', entity, source)
   })
 
   bot._client.on('attach_entity', (packet) => {
@@ -813,7 +814,9 @@ function inject (bot) {
       originalVehicle.passengers.splice(index, 1)
     }
     passenger.vehicle = vehicle
-    vehicle.passengers.push(passenger)
+    if (vehicle) {
+      vehicle.passengers.push(passenger)
+    }
 
     if (packet.entityId === bot.entity.id) {
       const vehicle = bot.vehicle

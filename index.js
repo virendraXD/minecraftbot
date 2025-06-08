@@ -21,7 +21,7 @@ const { equipBestGear } = require('./equipBestGear');
 //Virendra.minehut.gg:25565
 //Aternos IP: The_Boyss.aternos.me:34796 
 const SERVER_HOST = 'The_Boyss.aternos.me';
-const SERVER_PORT = 34796; // 19132 for minehut
+const SERVER_PORT = 34796; // 19132 for minehut real player(s)
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; 
@@ -232,7 +232,7 @@ function startBot() {
       }
     
       const now = Date.now();
-      if (!bot.lastTickTime || now - bot.lastTickTime > 5000) {
+      if (!bot.lastTickTime || now - bot.lastTickTime > 10000) {
         console.log(`📍 Position: ${bot.entity.position}`);
         bot.lastTickTime = now;
       }

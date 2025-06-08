@@ -10,7 +10,7 @@ let lastWarningTime = 0;
 let lastHelpCallTime = 0;
 
 const WARNING_COOLDOWN = 10 * 1000; // 10 sec
-const HELP_CALL_COOLDOWN = 15 * 1000; // 15 sec
+const HELP_CALL_COOLDOWN = 15 * 1000; // 15 sec 
 
 function setupCombat(botInstance, mcDataInstance, allowedUsers = []) {
   bot = botInstance;
