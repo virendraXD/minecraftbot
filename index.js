@@ -15,17 +15,19 @@ const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
 const chalk = require('chalk');
+//File Importing
 const { setupCombat } = require('./combat');
 const { equipBestGear } = require('./equipBestGear');
+const { setupMining, startMining, stopMining } = require('./mining');
 
 //Virendra.minehut.gg:25565
 //Aternos IP: The_Boyss.aternos.me:34796 
-const SERVER_HOST = 'The_Boyss.aternos.me';
-const SERVER_PORT = 34796; // 19132 for minehut real player(s)
+const SERVER_HOST = 'localhost';
+const SERVER_PORT = 25565; // 19132 for minehut mining
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; 
-const FLEE_HEALTH = 6; 
+// const FLEE_HEALTH = 6; 
 
 const log = {
   info: chalk.blue.bold,          // General info
@@ -163,7 +165,7 @@ function startBot() {
 
   bot = mineflayer.createBot({
     host: SERVER_HOST,  //ip for aternos: knightbot.duckdns.org
-    port: SERVER_PORT,        // port for aternos: 34796
+    port: SERVER_PORT,        // port for aternos: 34796 
     username: BOT_USERNAME,
     version: false
   });
@@ -195,7 +197,7 @@ function startBot() {
   
   bot.on('kicked', (reason) => console.log('❌ Kicked:', reason));
   bot.on('error', (err) => console.log("❗ Bot error:", err.message));
-//setTimeout
+  //setTimeout mine
   bot.once('spawn', async () => {
   try {
     reconnectAttempts = 0;
@@ -204,9 +206,14 @@ function startBot() {
 
     mcData = require('minecraft-data')(bot.version);
 
-    const allowedUsers = ['virendraXD', 'AB_2006', 'Aris'];
-
+    const allowedUsers = [
+      process.env.OWNER_USERNAME, 
+      'AB_2006',
+      'Aris'
+    ];
     setupCombat(bot, mcData, allowedUsers);
+
+    setupMining(bot);
 
     equipBestGear(bot);
     setInterval(() => equipBestGear(bot), 5 * 60 * 1000);
@@ -327,6 +334,17 @@ function startBot() {
     bot.chat("🪓 Starting wood collection...");
     isCancelled = false;
     await collectWood(64); 
+  }
+
+  if (cmd === 'copypos') {
+    positionNearPlayer(username); 
+  }
+
+  if (cmd === 'startmine') {
+    startMining(username);
+  }
+  if (cmd === 'stopmine') {
+    stopMining();
   }
 
   if (cmd === 'put in chest') {
@@ -562,10 +580,30 @@ function stopBot() {
   botRunning = false;
 }
 
-// Call your decision logic
+// Call your decision logic bot.on('chat
 pingServerAndDecide();
 
+async function positionNearPlayer(username) {
+  const player = bot.players[username]?.entity;
+  if (!player) {
+    bot.chat(`❗ Player ${username} not found.`);
+    return;
+  }
 
+  const pos = player.position;
+
+  // Move near the player (within 0.5 blocks)
+  await bot.pathfinder.goto(new GoalNear(pos.x, pos.y, pos.z, 0.5));
+
+  // Face the same direction as player
+  const lookVec = player.lookVector;
+  if (lookVec) {
+    const lookPos = pos.plus(lookVec.scaled(5)); // Look 5 blocks ahead in player's direction
+    bot.lookAt(lookPos);
+  }
+
+  bot.chat(`📍 Positioned at ${username}'s location, facing their direction.`);
+}
 
 async function chatWithAI(message) {
   try {
