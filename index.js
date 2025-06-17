@@ -27,7 +27,6 @@ const SERVER_PORT = 34796; // 19132 for minehut mining
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; 
-// const FLEE_HEALTH = 6; 
 
 const log = {
   info: chalk.blue.bold,          // General info
@@ -40,7 +39,6 @@ const log = {
   player: chalk.greenBright,      // Player-related info
 };
 
-
 let bot = null;
 let inactivityTimer = null;
 let lastPlayerActivity = Date.now(); 
@@ -49,20 +47,19 @@ let mcData;
 let isCancelled = false;  
 let lastPickUpTime = 0;
 let playerRetryAttempts = 0;
-
 let serverPingInterval = null;
 let playerCheckInterval = null;
 let playerQuitCheckInterval = null;
 let botRunning = false; 
 let cooldownTimer = null;
 
-const http = require('http');
 const { version } = require('os');
 
+const http = require('http');
 const port = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Bot is running!\n');
 }).listen(port, () => {
   console.log(`🌐 HTTP server running on port ${port}`);
