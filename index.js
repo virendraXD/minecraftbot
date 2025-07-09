@@ -22,8 +22,8 @@ const { setupMining, startMining, stopMining } = require('./mining');
 
 //Virendra.minehut.gg:25565
 //Aternos IP: The_Boyss.aternos.me:34796 
-const SERVER_HOST = 'The_Boyss.aternos.me';
-const SERVER_PORT = 34796; // 19132 for minehut mining
+const SERVER_HOST = 'localhost';
+const SERVER_PORT = 30000; // 19132 for minehut mining
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; 
@@ -194,7 +194,7 @@ function startBot() {
   
   bot.on('kicked', (reason) => console.log('❌ Kicked:', reason));
   bot.on('error', (err) => console.log("❗ Bot error:", err.message));
-  //setTimeout mine
+  //setTimeout mine bot.on('chat
   bot.once('spawn', async () => {
   try {
     reconnectAttempts = 0;
@@ -295,6 +295,8 @@ function startBot() {
 
   bot.on('chat', async (username, message) => {
   if (username === bot.username) return; 
+
+  combat.handleChatCommands?.(username, message);
 
   lastPlayerActivity = Date.now(); 
   lastActivity = Date.now();
@@ -577,7 +579,7 @@ function stopBot() {
   botRunning = false;
 }
 
-// Call your decision logic bot.on('chat
+// Call your decision logic 
 pingServerAndDecide();
 
 async function positionNearPlayer(username) {

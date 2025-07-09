@@ -55,7 +55,7 @@ function setupCombat(botInstance, mcDataInstance, allowedUsers = []) {
 
   loadPlayerData();
 
-  bot.on('chat', handleChatCommands);
+  // bot.on('chat', handleChatCommands);
   bot.on('entityHurt', handleEntityHurt);
   bot.on('entitySwingArm', handleSwingArm);
 }
