@@ -203,12 +203,6 @@ function startBot() {
 
     mcData = require('minecraft-data')(bot.version);
 
-    // const allowedUsers = [
-    //   process.env.OWNER_USERNAME, 
-    //   'AB_2006',
-    //   'Aris'
-    // ];
-    // setupCombat(bot, mcData, allowedUsers);
     combat.setupCombat(bot, mcData, [process.env.OWNER_USERNAME]);
 
     setupMining(bot);
@@ -313,9 +307,21 @@ function startBot() {
   const cmd = args.shift().toLowerCase(); 
 
   if (cmd === 'help') {
-    bot.chat('📜 Commands 1/2: !come | !follow | !avoid | !stop | !collect wood | !put in chest | !getlocation <username>');
+    bot.chat('📜 Commands 1/3: !come | !follow | !avoid | !stop | !collect wood | !put in chest | !getlocation <username>');
     setTimeout(() => {
-      bot.chat('📜 Commands 2/2: !goto x y z | !break | !place <item> | !deliver | !chat <msg>');
+      bot.chat('📜 Commands 2/3: !goto x y z | !break | !place <item> | !deliver | !chat <msg>');
+    }, 1000);
+  }
+
+  const adminUsers = [process.env.OWNER_USERNAME];
+  if (cmd === 'adminhelp') {
+    if (!adminUsers.includes(username)) {
+      return bot.chat(`🚫 You don't have permission to use this command.`);
+    }
+    
+    bot.chat('👑 Admin Commands 1/2: !calm | !fightowner | !listcategories | !addfriend <name> | !removefriend <name>');
+    setTimeout(() => {
+      bot.chat('👑 Admin Commands 2/2: !addbully <name> | !removebully <name> | !addtruefriend <name> | !removetruefriend <name> | !reloadcombat');
     }, 1000);
   }
 
