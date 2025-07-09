@@ -296,7 +296,7 @@ function startBot() {
   bot.on('chat', async (username, message) => {
   if (username === bot.username) return; 
 
-  combat.handleChatCommands?.(username, message);
+  combat.handleChatCommands(username, message);
 
   lastPlayerActivity = Date.now(); 
   lastActivity = Date.now();

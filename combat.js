@@ -173,5 +173,6 @@ function callForHelp(attacker) {
 }
 
 module.exports = {
-  setupCombat
+  setupCombat,
+  handleChatCommands
 };
