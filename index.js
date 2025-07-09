@@ -15,15 +15,15 @@ const fs = require('fs');
 const path = require('path');
 const { status } = require('minecraft-server-util');
 const chalk = require('chalk');
-//File Importing
-const { setupCombat } = require('./combat');
+//File Importing setupCombat
+const combat = require('./combat');
 const { equipBestGear } = require('./equipBestGear');
 const { setupMining, startMining, stopMining } = require('./mining');
 
 //Virendra.minehut.gg:25565
 //Aternos IP: The_Boyss.aternos.me:34796 
-const SERVER_HOST = 'localhost';
-const SERVER_PORT = 30000; // 19132 for minehut mining
+const SERVER_HOST = 'The_Boyss.aternos.me';
+const SERVER_PORT = 34796; // 19132 for minehut mining
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; 
@@ -203,12 +203,13 @@ function startBot() {
 
     mcData = require('minecraft-data')(bot.version);
 
-    const allowedUsers = [
-      process.env.OWNER_USERNAME, 
-      'AB_2006',
-      'Aris'
-    ];
-    setupCombat(bot, mcData, allowedUsers);
+    // const allowedUsers = [
+    //   process.env.OWNER_USERNAME, 
+    //   'AB_2006',
+    //   'Aris'
+    // ];
+    // setupCombat(bot, mcData, allowedUsers);
+    combat.setupCombat(bot, mcData, [process.env.OWNER_USERNAME]);
 
     setupMining(bot);
 
