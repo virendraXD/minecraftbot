@@ -22,8 +22,8 @@ const { setupMining, startMining, stopMining } = require('./mining');
 
 //Virendra.minehut.gg:25565
 //Aternos IP: The_Boyss.aternos.me:34796 
-const SERVER_HOST = 'The_Boyss.aternos.me';
-const SERVER_PORT = 34796; // 19132 for minehut mining
+const SERVER_HOST = 'free-01.creepercastle.cloud';
+const SERVER_PORT = 25575; // 19132 for minehut mining
 const BOT_USERNAME = 'Aisha';
 const pickUpCooldown = 5000;
 const MAX_RETRIES = 3; 
